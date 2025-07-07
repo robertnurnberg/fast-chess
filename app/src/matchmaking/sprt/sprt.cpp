@@ -177,8 +177,8 @@ static double itp(F f, double a, double b, double f_a, double f_b, double k_1, d
 
         double x_f = (f_b * a - f_a * b) / (f_b - f_a);
 
-        double sigma = (x_half - x_f) / std::abs(x_half - x_f);
-        double x_t   = delta <= std::abs(x_half - x_f) ? x_f + sigma * delta : x_half;
+        int sigma  = (x_half - x_f) >= 0 ? 1 : -1;
+        double x_t = delta <= std::abs(x_half - x_f) ? x_f + sigma * delta : x_half;
 
         double x_itp = std::abs(x_t - x_half) <= r ? x_t : x_half - sigma * r;
 
@@ -205,7 +205,7 @@ double SPRT::getLLR_logistic(double total, std::array<double, N> scores, std::ar
     // given an empirical distribution. See proposition 1.1 of [1] for details.
     //
     // [1]: Michel Van den Bergh, Comments on Normalized Elo,
-    // https://www.cantate.be/Fishtest/normalized_elo_practical.pdf
+    // https://www.cantate.be/Fishtest/comparing_approximations.pdf
     const auto mle = [&](double s) -> std::array<double, N> {
         const double theta_epsilon = 1e-3;
 
@@ -260,10 +260,10 @@ double SPRT::getLLR_normalized(double total, std::array<double, N> scores, std::
         const auto calc_phi = [&]() -> std::tuple<std::array<double, N>, double, double> {
             // Calculate phi.
             auto [mu, var] = mean_and_variance(scores, p);
+            double sigma = std::sqrt(var);
             std::array<double, N> phi;
             for (size_t i = 0; i < N; i++) {
                 double a_i   = scores[i];
-                double sigma = std::sqrt(var);
                 phi[i] = a_i - mu_ref - 0.5 * t_star * sigma * (1.0 + ((a_i - mu) / sigma) * ((a_i - mu) / sigma));
             }
 

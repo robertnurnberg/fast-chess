@@ -45,7 +45,6 @@ inline bool compliant(int argc, char const *argv[]) {
 
     UciEngine uci_engine(config, false);
 
-
     auto executeStep = [&step, &uci_engine](const std::string &description, const std::function<bool()> &action) {
         step++;
 
@@ -65,7 +64,6 @@ inline bool compliant(int argc, char const *argv[]) {
 
         return true;
     };
-
 
     std::vector<std::pair<std::string, std::function<bool()>>> steps = {
         {"Start the engine", [&uci_engine] { return uci_engine.start(/*cpus*/ std::nullopt).has_value(); }},

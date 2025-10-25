@@ -504,8 +504,9 @@ void Match::setEngineIllegalMoveStatus(Player& loser, Player& winner, const std:
 }
 
 void Match::verifyPvLines(const Player& us) {
-    const static auto verifyPv = [&us](Board board, const std::string& startpos, const std::vector<std::string>& uci_moves,
-                                    const std::string& info, std::string_view name) {
+    const static auto verifyPv = [&us](Board board, const std::string& startpos,
+                                       const std::vector<std::string>& uci_moves, const std::string& info,
+                                       std::string_view name) {
         const auto pv = us.engine.getPv(info);
 
         // skip lines without pv
@@ -561,7 +562,7 @@ void Match::verifyPvLines(const Player& us) {
 
         // for mate scores check correct length of PV
         const auto score_type = us.engine.getScoreType(info);
-        const auto score = us.engine.getScore(info);
+        const auto score      = us.engine.getScore(info);
         bool isBound = (info.find("lowerbound") != std::string::npos || info.find("upperbound") != std::string::npos);
 
         if (score_type == engine::ScoreType::MATE && !isBound) {
@@ -591,8 +592,7 @@ void Match::verifyPvLines(const Player& us) {
 
             Logger::print<Logger::Level::WARN>("{1}{0}{2}{0}{3}{0}{4}", separator, out, uci_info, position, ucimoves);
         }
-
-     };
+    };
 
     const auto info_lines = us.engine.getInfoLines();
     for (const auto& info : info_lines) {
@@ -604,7 +604,7 @@ void Match::verifyPvLines(const Player& us) {
 
     // allow for upperbound/lowerbound info lines
     const auto& info = info_lines.back();
-    const auto pv = us.engine.getPv(info);
+    const auto pv    = us.engine.getPv(info);
     if (!pv.has_value() || pv->empty() || best_move == "<none>") {
         return;
     }
@@ -613,14 +613,15 @@ void Match::verifyPvLines(const Player& us) {
     if (best_move != (*pv)[0]) {
         warning = "Warning; Bestmove does not match beginning of last PV - move {} from {}";
     }
-    
+
     if (warning.empty()) {
         return;
     }
 
     auto out      = fmt::format(fmt::runtime(warning), best_move, us.engine.getConfig().name);
     auto uci_info = fmt::format("Info; {}", info);
-    auto position = fmt::format("Position; {}", start_position_ == "startpos" ? "startpos" : ("fen " + start_position_));
+    auto position =
+        fmt::format("Position; {}", start_position_ == "startpos" ? "startpos" : ("fen " + start_position_));
     auto ucimoves = fmt::format("Moves; {}", str_utils::join(uci_moves_, " "));
 
     auto separator = config::TournamentConfig->test_env ? " :: " : "\n";

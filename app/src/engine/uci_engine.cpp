@@ -455,7 +455,7 @@ std::optional<std::string> UciEngine::bestmove() const {
 
 ScoreType UciEngine::getScoreType(const std::string &info) const {
     auto split_info = str_utils::splitString(info, ' ');
-    auto score = str_utils::findElement<std::string>(split_info, "score").value_or("ERR");
+    auto score      = str_utils::findElement<std::string>(split_info, "score").value_or("ERR");
 
     if (score == "ERR") return ScoreType::ERR;
     if (score == "cp") return ScoreType::CP;
@@ -464,9 +464,7 @@ ScoreType UciEngine::getScoreType(const std::string &info) const {
     return ScoreType::ERR;
 }
 
-ScoreType UciEngine::lastScoreType() const {
-    return getScoreType(lastInfoLine(true));
-}
+ScoreType UciEngine::lastScoreType() const { return getScoreType(lastInfoLine(true)); }
 
 std::chrono::milliseconds UciEngine::lastTime() const {
     std::vector<std::string> last_reported_time_info;
@@ -503,16 +501,15 @@ int UciEngine::getScore(const std::string &info) const {
     return str_utils::findElement<int>(split_info, score_type == ScoreType::CP ? "cp" : "mate").value_or(0);
 }
 
-int UciEngine::lastScore() const {
-    return getScore(lastInfoLine(true));
-}
+int UciEngine::lastScore() const { return getScore(lastInfoLine(true)); }
 
 std::optional<std::vector<std::string>> UciEngine::getPv(const std::string &info) const {
     auto split_info = str_utils::splitString(info, ' ');
     if (!str_utils::contains(split_info, "pv")) return std::nullopt;
 
     auto it_start = std::find(split_info.begin(), split_info.end(), "pv") + 1;
-    auto it_end   = std::find_if(it_start, split_info.end(), [](const auto& token) { return !chess::uci::isUciMove(token); });
+    auto it_end =
+        std::find_if(it_start, split_info.end(), [](const auto &token) { return !chess::uci::isUciMove(token); });
 
     return std::vector<std::string>(it_start, it_end);
 }

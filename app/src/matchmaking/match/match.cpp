@@ -135,6 +135,7 @@ Match::Match(const book::Opening& opening)
     };
 
     std::transform(opening_.moves.begin(), opening_.moves.end(), std::back_inserter(data_.moves), insert_move);
+    data_.book_depth = opening_.moves.size();
 }
 
 std::string Match::convertScoreToString(engine::Score score) {
@@ -454,7 +455,7 @@ bool Match::playMove(Player& us, Player& them) {
     maxmoves_tracker_.update();
 
     // if both engines have made a move in this game, we perform a sanity check on their scores
-    if (data_.moves.size() > 1) {
+    if (data_.moves.size() - data_.book_depth > 1) {
         checkMateScoreSignMismatch(them, us, board_, start_position_, data_);
     }
 

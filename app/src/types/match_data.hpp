@@ -115,6 +115,7 @@ struct MatchData {
     std::string reason;
 
     std::vector<MoveData> moves;
+    int book_depth = 0;
 
     // This is the reason why the game ended.
     // It will be used for the PGN Header.

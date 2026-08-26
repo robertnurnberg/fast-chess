@@ -106,12 +106,59 @@ TEST_SUITE("Match Test") {
         CHECK_FALSE(checkBestmovePv("info depth 1 score cp 10 pv e2e4 e7e5", "e2e4").has_value());
         CHECK_FALSE(checkBestmovePv("info depth 1 score cp 10 lowerbound pv e2e4", "d2d4").has_value());
         CHECK_FALSE(checkBestmovePv("info depth 1 score cp 10", "e2e4").has_value());
+        CHECK_FALSE(checkBestmovePv("info depth 1 score cp 10 pv e2e4", "").has_value());
+        CHECK_FALSE(checkBestmovePv("info depth 1 score cp 10 pv e2e4 e7e5", "").has_value());
 
         const auto result = checkBestmovePv("info depth 1 score cp 10 pv e2e4 e7e5", "d2d4");
 
         REQUIRE(result.has_value());
         CHECK(result->warning == PvWarning::BestmoveMismatch);
         CHECK(result->move == "d2d4");
+    }
+
+    TEST_CASE("Ponder move PV check") {
+        SUBCASE("no warning if ponder move matches second pv move") {
+            CHECK_FALSE(checkBestmovePv("info depth 1 score cp 10 pv e2e4 e7e5", "e2e4", "e7e5", true).has_value());
+        }
+
+        SUBCASE("reports ponder move mismatch") {
+            // the mismatch check does not depend on warn_ponder_pv_short
+            const auto result = checkBestmovePv("info depth 1 score cp 10 pv e2e4 e7e5", "e2e4", "d7d5", false);
+
+            REQUIRE(result.has_value());
+            CHECK(result->warning == PvWarning::PonderMismatch);
+            CHECK(result->move == "d7d5");
+        }
+
+        SUBCASE("pv of length 1 only warns with warn_ponder_pv_short") {
+            CHECK_FALSE(checkBestmovePv("info depth 1 score cp 10 pv e2e4", "e2e4", "e7e5", false).has_value());
+
+            const auto result = checkBestmovePv("info depth 1 score cp 10 pv e2e4", "e2e4", "e7e5", true);
+
+            REQUIRE(result.has_value());
+            CHECK(result->warning == PvWarning::PonderPvTooShort);
+            CHECK(result->move == "e7e5");
+        }
+
+        SUBCASE("bestmove mismatch takes precedence over ponder move mismatch") {
+            const auto result = checkBestmovePv("info depth 1 score cp 10 pv e2e4 e7e5", "d2d4", "d7d5", true);
+
+            REQUIRE(result.has_value());
+            CHECK(result->warning == PvWarning::BestmoveMismatch);
+            CHECK(result->move == "d2d4");
+        }
+
+        SUBCASE("no ponder check for bound scores") {
+            CHECK_FALSE(
+                checkBestmovePv("info depth 1 score cp 10 upperbound pv e2e4 e7e5", "e2e4", "d7d5", true).has_value());
+            CHECK_FALSE(
+                checkBestmovePv("info depth 1 score cp 10 lowerbound pv e2e4 e7e5", "e2e4", "d7d5", true).has_value());
+        }
+
+        SUBCASE("no warning when engine omits ponder move") {
+            CHECK_FALSE(checkBestmovePv("info depth 1 score cp 10 pv e2e4", "e2e4", "", true).has_value());
+            CHECK_FALSE(checkBestmovePv("info depth 1 score cp 10 pv e2e4 e7e5", "e2e4", "", true).has_value());
+        }
     }
 
     TEST_CASE("ResignTracker") {

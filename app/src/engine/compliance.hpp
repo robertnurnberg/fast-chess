@@ -142,7 +142,7 @@ inline bool compliant(int argc, char const* argv[]) {
         {"Read bestmove after go wtime 100 btime 100",
          [&uci_engine] {
              return uci_engine.readEngine("bestmove").code == process::Status::OK &&
-                    uci_engine.bestmove() != std::nullopt;
+                    uci_engine.bestmove().first != std::nullopt;
          }},
         {"Verify info line format is valid after go wtime 100 btime 100",
          [&uci_engine] { return isValidInfoLine(uci_engine.lastInfoLine()); }},
@@ -152,7 +152,7 @@ inline bool compliant(int argc, char const* argv[]) {
         {"Read bestmove after position startpos moves e2e4 e7e5",
          [&uci_engine] {
              return uci_engine.readEngine("bestmove").code == process::Status::OK &&
-                    uci_engine.bestmove() != std::nullopt;
+                    uci_engine.bestmove().first != std::nullopt;
          }},
         {"Verify info line format is valid after position startpos moves e2e4 e7e5",
          [&uci_engine] { return isValidInfoLine(uci_engine.lastInfoLine()); }}};

@@ -72,6 +72,10 @@ std::string pvWarningFormat(PvWarning warning) {
             return "Warning; Mating PV does not end with checkmate - from {}";
         case PvWarning::BestmoveMismatch:
             return "Warning; Bestmove does not match beginning of last PV - move {} from {}";
+        case PvWarning::PonderMismatch:
+            return "Warning; Pondermove does not match beginning of last PV - move {} from {}";
+        case PvWarning::PonderPvTooShort:
+            return "Warning; PV has length 1 despite ponder move output - move {} from {}";
     }
 
     assert(false);
@@ -86,6 +90,8 @@ bool pvWarningHasMove(PvWarning warning) {
         case PvWarning::ContinuesAfterCheckmate:
         case PvWarning::ContinuesAfterStalemate:
         case PvWarning::BestmoveMismatch:
+        case PvWarning::PonderMismatch:
+        case PvWarning::PonderPvTooShort:
             return true;
         case PvWarning::IncompleteMatingPv:
         case PvWarning::TooLongMatingPv:
@@ -214,20 +220,42 @@ std::optional<PvCheckResult> checkParsedPvLine(Board board, const engine::UciInf
     return std::nullopt;
 }
 
-std::optional<PvCheckResult> checkParsedBestmovePv(const engine::UciInfo& info, std::string_view best_move) {
-    if (best_move.empty() || info.isBound() || info.pv.empty() || best_move == info.pv[0]) {
+std::optional<PvCheckResult> checkParsedBestmovePv(const engine::UciInfo& info, std::string_view best_move,
+                                                   std::string_view ponder_move, bool warn_ponder_pv_short) {
+    if (best_move.empty() || info.isBound() || info.pv.empty()) {
         return std::nullopt;
     }
 
-    return PvCheckResult{PvWarning::BestmoveMismatch, std::string(best_move)};
+    if (best_move != info.pv[0]) {
+        return PvCheckResult{PvWarning::BestmoveMismatch, std::string(best_move)};
+    }
+
+    if (ponder_move.empty()) {
+        return std::nullopt;
+    }
+
+    if (info.pv.size() < 2) {
+        if (warn_ponder_pv_short) {
+            return PvCheckResult{PvWarning::PonderPvTooShort, std::string(ponder_move)};
+        }
+
+        return std::nullopt;
+    }
+
+    if (ponder_move != info.pv[1]) {
+        return PvCheckResult{PvWarning::PonderMismatch, std::string(ponder_move)};
+    }
+
+    return std::nullopt;
 }
 
 std::optional<PvCheckResult> checkPvLine(Board board, std::string_view info, bool check_mate_pvs) {
     return checkParsedPvLine(std::move(board), engine::UciEngine::parseInfo(info), check_mate_pvs);
 }
 
-std::optional<PvCheckResult> checkBestmovePv(std::string_view info, std::string_view best_move) {
-    return checkParsedBestmovePv(engine::UciEngine::parseInfo(info), best_move);
+std::optional<PvCheckResult> checkBestmovePv(std::string_view info, std::string_view best_move,
+                                             std::string_view ponder_move, bool warn_ponder_pv_short) {
+    return checkParsedBestmovePv(engine::UciEngine::parseInfo(info), best_move, ponder_move, warn_ponder_pv_short);
 }
 
 Match::Match(const book::Opening& opening)
@@ -270,11 +298,12 @@ Match::Match(const book::Opening& opening)
     std::transform(opening_.moves.begin(), opening_.moves.end(), std::back_inserter(data_.moves), insert_move);
 }
 
-void Match::addMoveData(const Player& player, const std::string& move, int64_t measured_time_ms, int64_t latency,
-                        int64_t timeleft, bool legal) {
+void Match::addMoveData(const Player& player, const std::string& move, const std::string& ponder,
+                        int64_t measured_time_ms, int64_t latency, int64_t timeleft, bool legal) {
     MoveData move_data;
 
     move_data.move           = move;
+    move_data.ponder         = ponder;
     move_data.elapsed_millis = measured_time_ms;
     move_data.legal          = legal;
 
@@ -324,7 +353,8 @@ void Match::addMoveData(const Player& player, const std::string& move, int64_t m
         }
     }
 
-    verifyPvLines(player, legal ? move : "");
+    // only warn on PV/bestmove mismatch if the move is legal
+    verifyPvLines(player, legal ? move : "", ponder);
 
     data_.moves.push_back(move_data);
 }
@@ -512,7 +542,8 @@ bool Match::playMove(Player& us, Player& them) {
         LOG_INFO_THREAD("Engine {} latency: {}ms (elapsed: {}, reported: {})", name, latency, elapsed_ms, last_time);
     }
 
-    const auto best_move = us.engine.bestmove(status.code == engine::process::Status::OK);
+    const auto bestmove  = us.engine.bestmove(status.code == engine::process::Status::OK);
+    const auto best_move = bestmove.first;
     const auto move      = best_move && uci::isUciMove(*best_move) ? uci::uciToMove(board_, *best_move) : Move::NO_MOVE;
     const auto legal     = isLegal(move);
 
@@ -521,7 +552,8 @@ bool Match::playMove(Player& us, Player& them) {
     const auto overrun_ms = timeleft < 0 ? -timeleft : 0;
 
     if (best_move) {
-        addMoveData(us, *best_move, elapsed_ms, latency, timeleft, legal);
+        const auto ponder = bestmove.second;
+        addMoveData(us, *best_move, ponder ? *ponder : "", elapsed_ms, latency, timeleft, legal);
     }
 
     // there are two reasons why best_move could be empty
@@ -677,7 +709,7 @@ void Match::setEngineIllegalMoveStatus(Player& loser, Player& winner, const std:
     Logger::print<Logger::Level::WARN>("Warning; Illegal move {} played by {}", best_move.value_or("<none>"), name);
 }
 
-void Match::verifyPvLines(const Player& us, const std::string& best_move) {
+void Match::verifyPvLines(const Player& us, const std::string& best_move, const std::string& ponder_move) {
     const auto info_lines = us.engine.getInfoLines();
     std::vector<std::pair<const std::string*, engine::UciInfo>> parsed_lines;
     parsed_lines.reserve(info_lines.size());
@@ -704,7 +736,7 @@ void Match::verifyPvLines(const Player& us, const std::string& best_move) {
         Logger::print<Logger::Level::WARN>("{1}{0}{2}{0}{3}{0}{4}", separator, out, uci_info, position, moves);
     }
 
-    // finally check if the final PV matches bestmove
+    // finally check if the final PV matches bestmove (and possibly ponder move)
     if (best_move.empty()) {
         return;
     }
@@ -718,19 +750,22 @@ void Match::verifyPvLines(const Player& us, const std::string& best_move) {
         return;
     }
 
-    const auto& info  = *it->first;
-    const auto result = checkParsedBestmovePv(it->second, best_move);
+    const auto& info = *it->first;
+    const auto result =
+        checkParsedBestmovePv(it->second, best_move, ponder_move, config::TournamentConfig->warn_ponder_pv_short);
     if (result.has_value()) {
         const auto warning = pvWarningFormat(result->warning);
         auto start_pos     = start_position_ == "startpos" ? start_position_ : fmt::format("fen {}", start_position_);
         auto out           = fmt::format(fmt::runtime(warning), result->move, us.engine.getConfig().name);
         auto uci_info      = fmt::format("Info; {}", info);
+        auto uci_bm        = fmt::format("Bestmove; {}", us.engine.getStdoutLines().back()->line);
         auto position      = fmt::format("Position; {}", start_pos);
         auto ucimoves      = fmt::format("Moves; {}", str_utils::join(data_.getMoves(), " "));
 
         auto separator = config::TournamentConfig->test_env ? " :: " : "\n";
 
-        Logger::print<Logger::Level::WARN>("{1}{0}{2}{0}{3}{0}{4}", separator, out, uci_info, position, ucimoves);
+        Logger::print<Logger::Level::WARN>("{1}{0}{2}{0}{3}{0}{4}{0}{5}", separator, out, uci_info, uci_bm, position,
+                                           ucimoves);
     }
 }
 

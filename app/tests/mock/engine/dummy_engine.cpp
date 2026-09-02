@@ -4,6 +4,8 @@
 #include <thread>
 #include <vector>
 
+#include <signal.h>
+
 bool contains(std::string_view haystack, std::string_view needle) { return haystack.find(needle) != std::string::npos; }
 
 using namespace std;
@@ -103,6 +105,35 @@ int main(int argc, char const *argv[]) {
             }
         } else if (contains(cmd, "go")) {
             if (crash_on_go_nodes && contains(cmd, " nodes ")) {
+                int ms = 0;
+                // Keep the engine alive briefly so callers can observe an in-flight search
+                // before it terminates with the platform's segmentation-fault signal.
+                // clang-format off
+                vector<string> infos{
+                    "info depth 1 seldepth 0 score cp 0 tbhits 0 nodes 20 nps 20000 hashfull 0 time 0 pv c2c4",
+                    "info depth 2 seldepth 1 score cp 36 tbhits 0 nodes 76 nps 76000 hashfull 0 time 0 pv c2c4 c7c5",
+                    "info depth 3 seldepth 2 score cp 10 tbhits 0 nodes 179 nps 179000 hashfull 0 time 0 pv c2c4 c7c5 g1f3",
+                    "info depth 4 seldepth 3 score cp 28 tbhits 0 nodes 363 nps 363000 hashfull 0 time 0 pv c2c4 c7c5 g1f3 g8f6",
+                    "info depth 5 seldepth 4 score cp 5 tbhits 0 nodes 616 nps 616000 hashfull 0 time 0 pv c2c4 c7c5 g1f3 g8f6 b1c3",
+                    "info depth 6 seldepth 5 score cp 20 tbhits 0 nodes 1539 nps 769000 hashfull 0 time 1 pv c2c4 g7g6 b1c3 c7c5 g1f3 f8g7",
+                    "info depth 7 seldepth 6 score cp 22 tbhits 0 nodes 3056 nps 1528000 hashfull 0 time 1 pv c2c4 g7g6 g1f3 f8g7 d2d4 g8f6 b1c3",
+                    "info depth 8 seldepth 7 score cp 21 tbhits 0 nodes 11016 nps 2203000 hashfull 2 time 4 pv g1f3 g8f6 g2g3 g7g6 f1g2 f8g7 e1g1 e8g8",
+                    "info depth 9 seldepth 8 score cp 24 tbhits 0 nodes 17258 nps 2465000 hashfull 2 time 6 pv g1f3 g8f6 c2c4 g7g6 b1c3 f8g7 d2d4 e8g8 e2e4",
+                    "info depth 10 seldepth 9 score cp 35 tbhits 0 nodes 35077 nps 2923000 hashfull 5 time 11 pv e2e4 c7c5 g1f3 g7g6 b1c3 f8g7 d2d4 c5d4 f3d4 g8f6",
+                    "info depth 11 seldepth 12 score cp 27 tbhits 0 nodes 48611 nps 2859000 hashfull 7 time 16 pv e2e4 c7c5 g1f3 g7g6 b1c3 b8c6 d2d4 c5d4 f3d4 f8g7 d4b5",
+                    "info depth 12 seldepth 12 score cp 24 tbhits 0 nodes 75709 nps 3028000 hashfull 9 time 24 pv e2e4 c7c5 g1f3 b8c6 b1c3 g8f6 d2d4 c5d4 f3d4 g7g6 c1e3 f8g7",
+                    "info depth 13 seldepth 13 score cp 30 tbhits 0 nodes 114590 nps 3183000 hashfull 14 time 35 pv e2e4 c7c5 g1f3 b8c6 f1b5 g8f6 e4e5 f6d5 e1g1 d5c7 b5c6 b7c6 c2c4",
+                    "info depth 14 seldepth 13 score cp 30 tbhits 0 nodes 166040 nps 3193000 hashfull 21 time 51 pv e2e4 c7c5 g1f3 e7e6 b1c3 b8c6 d2d4 c5d4 f3d4 g8f6 d4b5 d7d5 e4d5 e6d5",
+                    "info depth 15 seldepth 18 score cp 17 tbhits 0 nodes 406337 nps 3224000 hashfull 59 time 125 pv e2e4 e7e6 d2d4 d7d5 b1c3 g8f6 f1d3 c7c5 e4d5 f6d5 c3d5 d8d5 g1f3 c5d4 e1g1",
+                };
+                // clang-format on
+
+                for (const auto &info : infos) {
+                    cout << info << endl;
+                    this_thread::sleep_for(chrono::milliseconds(ms++));
+                }
+                this_thread::sleep_for(chrono::milliseconds(500));
+                raise(SIGSEGV);
                 return 1;
             }
 
